@@ -12,8 +12,8 @@ metadata:
     
     # Fetch the git-clone task from hub, we are able to reference later on it
     # with taskRef and it will automatically be embedded into our pipeline.
-    pipelinesascode.tekton.dev/task: "[git-clone:0.8]"
-    pipelinesascode.tekton.dev/task-1: "https://raw.githubusercontent.com/tektoncd/catalog/main/task/maven/0.2/maven.yaml"
+    pipelinesascode.tekton.dev/task: "https://raw.githubusercontent.com/openshift-pipelines/tektoncd-catalog/refs/heads/p/tasks/task-git-clone/0.4.1/task-git-clone.yaml"
+    pipelinesascode.tekton.dev/task-1: "https://raw.githubusercontent.com/openshift-pipelines/tektoncd-catalog/refs/heads/p/tasks/task-maven/0.4.0/task-maven.yaml"
 
     
     # You can add more tasks in here to reuse, browse the one you like from here
