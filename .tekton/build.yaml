@@ -91,9 +91,8 @@ spec:
           - name: SCRIPT
             value: oc start-build spring-petclinic --from-dir=/workspace/manifest-dir/target --follow --wait -n demo-cicd
 
-      # ── Step 4: Tag Image ────────────────────────────────────────────────
-      # Tags the built image with git commit SHA for traceability
-      # ArgoCD Image Updater watches this ImageStream for new tags
+     # ── Step 4: Tag Image with full SHA ──────────────────────────────────
+      # Tags the built image with full git commit SHA for traceability
       - name: tag-image
         runAfter:
           - s2i-build
@@ -101,8 +100,18 @@ spec:
           name: openshift-client
         params:
           - name: SCRIPT
-            value: oc tag demo-cicd/spring-petclinic:latest demo-cicd/spring-petclinic:$(params.revision) -n demo-cicd && oc get istag -n demo-cicd | grep spring-petclinic
+            value: oc tag demo-cicd/spring-petclinic:latest demo-cicd/spring-petclinic:$(params.revision) -n demo-cicd
 
+      # ── Step 5: Verify Image Tags ─────────────────────────────────────────
+      # Verifies the image tags are correctly set in the ImageStream
+      - name: verify-tags
+        runAfter:
+          - tag-image
+        taskRef:
+          name: openshift-client
+        params:
+          - name: SCRIPT
+            value: oc get istag -n demo-cicd
   workspaces:
   - name: source
     volumeClaimTemplate:
