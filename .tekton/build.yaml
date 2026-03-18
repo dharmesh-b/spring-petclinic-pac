@@ -9,20 +9,19 @@ metadata:
 
     # The branch or tag we are targeting (ie: main, refs/tags/*)
     pipelinesascode.tekton.dev/on-target-branch: "main"
-    
-    # Fetch the git-clone task from hub, we are able to reference later on it
-    # with taskRef and it will automatically be embedded into our pipeline.
+
+    # Fetch the git-clone task from hub
     pipelinesascode.tekton.dev/task: "https://raw.githubusercontent.com/openshift-pipelines/tektoncd-catalog/refs/heads/p/tasks/task-git-clone/0.4.1/task-git-clone.yaml"
+
+    # Fetch the maven task from hub
     pipelinesascode.tekton.dev/task-1: "https://raw.githubusercontent.com/openshift-pipelines/tektoncd-catalog/refs/heads/p/tasks/task-maven/0.4.0/task-maven.yaml"
 
-    
-    # You can add more tasks in here to reuse, browse the one you like from here
-    # https://hub.tekton.dev/
-    # example:
-    # pipelinesascode.tekton.dev/task-2: "[maven, buildah]"
+    # Fetch the openshift-client task to trigger S2I build and tag image
+    pipelinesascode.tekton.dev/task-2: "https://raw.githubusercontent.com/openshift-pipelines/tektoncd-catalog/refs/heads/p/tasks/task-openshift-client/0.2.0/task-openshift-client.yaml"
 
     # How many runs we want to keep attached to this event
     pipelinesascode.tekton.dev/max-keep-runs: "5"
+
 spec:
   params:
     # The variable with brackets are special to Pipelines as Code
@@ -31,6 +30,7 @@ spec:
       value: "{{ repo_url }}"
     - name: revision
       value: "{{ revision }}"
+
   pipelineSpec:
     params:
       - name: repo_url
@@ -38,7 +38,10 @@ spec:
     workspaces:
       - name: source
       - name: basic-auth
+
     tasks:
+      # ── Step 1: Clone Repository ─────────────────────────────────────────
+      # Clones the source code from GitHub into the shared workspace
       - name: fetch-repository
         taskRef:
           name: git-clone
@@ -52,6 +55,10 @@ spec:
             value: $(params.repo_url)
           - name: REVISION
             value: $(params.revision)
+
+      # ── Step 2: Maven Build ──────────────────────────────────────────────
+      # Compiles source code and packages into a JAR file
+      # JAR will be available at target/*.jar for S2I build
       - name: build
         runAfter:
           - fetch-repository
@@ -67,6 +74,38 @@ spec:
             value:
               - clean
               - package
+              - -DskipTests
+
+      # ── Step 3: S2I Build ────────────────────────────────────────────────
+      # Uploads JAR to OpenShift BuildConfig using S2I binary build strategy
+      # BuildConfig and ImageStream must exist in demo-cicd namespace
+      - name: s2i-build
+        runAfter:
+          - build
+        taskRef:
+          name: openshift-client
+        workspaces:
+          - name: manifest-dir
+            workspace: source
+        params:
+          - name: SCRIPT
+            value: oc start-build spring-petclinic --from-dir=/workspace/manifest-dir/target --follow --wait -n demo-cicd
+
+      # ── Step 4: Tag Image ────────────────────────────────────────────────
+      # Tags the built image with git commit SHA for traceability
+      # ArgoCD Image Updater watches this ImageStream for new tags
+      - name: tag-image
+        runAfter:
+          - s2i-build
+        taskRef:
+          name: openshift-client
+        params:
+          - name: SCRIPT
+            value: |
+              SHORT_SHA=$(echo $(params.revision) | cut -c1-7)
+              oc tag demo-cicd/spring-petclinic:latest demo-cicd/spring-petclinic:$(params.revision) -n demo-cicd
+              oc tag demo-cicd/spring-petclinic:latest demo-cicd/spring-petclinic:${SHORT_SHA} -n demo-cicd
+              oc get istag -n demo-cicd | grep spring-petclinic
 
   workspaces:
   - name: source
