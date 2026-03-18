@@ -99,19 +99,19 @@ spec:
           - s2i-build
         taskRef:
           name: openshift-client
-        params:
-          - name: SCRIPT
-            value: |
-              SHORT_SHA=${FULL_SHA:0:7}
-              echo "Full SHA : $FULL_SHA"
-              echo "Short SHA: $SHORT_SHA"
-              oc tag demo-cicd/spring-petclinic:latest demo-cicd/spring-petclinic:${FULL_SHA} -n demo-cicd
-              oc tag demo-cicd/spring-petclinic:latest demo-cicd/spring-petclinic:${SHORT_SHA} -n demo-cicd
-              echo "All tags:"
-              oc get istag -n demo-cicd | grep spring-petclinic              
         env:
           - name: FULL_SHA
             value: $(params.revision)
+        params:
+          - name: SCRIPT
+            value: |
+              SHORT_SHA=$(printf '%s' "$FULL_SHA" | cut -c1-7)
+              echo "Full SHA : $FULL_SHA"
+              echo "Short SHA: $SHORT_SHA"
+              oc tag demo-cicd/spring-petclinic:latest demo-cicd/spring-petclinic:$FULL_SHA -n demo-cicd
+              oc tag demo-cicd/spring-petclinic:latest demo-cicd/spring-petclinic:$SHORT_SHA -n demo-cicd
+              echo "All tags:"
+              oc get istag -n demo-cicd | grep spring-petclinic
 
   workspaces:
   - name: source
