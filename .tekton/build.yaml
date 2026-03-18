@@ -102,9 +102,13 @@ spec:
         params:
           - name: SCRIPT
             value: |
-              SHORT_SHA=$(echo $(params.revision) | cut -c1-7)
-              oc tag demo-cicd/spring-petclinic:latest demo-cicd/spring-petclinic:$(params.revision) -n demo-cicd
+              FULL_SHA="$(params.revision)"
+              SHORT_SHA="${FULL_SHA:0:7}"
+              echo "Full SHA : $FULL_SHA"
+              echo "Short SHA: $SHORT_SHA"
+              oc tag demo-cicd/spring-petclinic:latest demo-cicd/spring-petclinic:${FULL_SHA} -n demo-cicd
               oc tag demo-cicd/spring-petclinic:latest demo-cicd/spring-petclinic:${SHORT_SHA} -n demo-cicd
+              echo "All tags:"
               oc get istag -n demo-cicd | grep spring-petclinic
 
   workspaces:
