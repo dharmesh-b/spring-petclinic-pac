@@ -58,6 +58,7 @@ spec:
 
       # ── Step 2: Maven Build ──────────────────────────────────────────────
       # Compiles source code and packages into a JAR file
+      # -DskipTests skips unit tests to speed up the build
       # JAR will be available at target/*.jar for S2I build
       - name: build
         runAfter:
@@ -78,7 +79,9 @@ spec:
 
       # ── Step 3: S2I Build ────────────────────────────────────────────────
       # Uploads JAR to OpenShift BuildConfig using S2I binary build strategy
+      # No Dockerfile needed - S2I builder image wraps JAR automatically
       # BuildConfig and ImageStream must exist in demo-cicd namespace
+      # Image is pushed to internal registry with latest tag
       - name: s2i-build
         runAfter:
           - build
@@ -91,27 +94,18 @@ spec:
           - name: SCRIPT
             value: oc start-build spring-petclinic --from-dir=/workspace/manifest-dir/target --follow --wait -n demo-cicd
 
-     # ── Step 4: Tag Image with full SHA ──────────────────────────────────
-      # Tags the built image with full git commit SHA for traceability
-      - name: tag-image
+      # ── Step 4: Verify Image Tag ─────────────────────────────────────────
+      # Verifies the latest tag is correctly set in the ImageStream
+      # ArgoCD Image Updater watches this ImageStream for new latest tag
+      - name: verify-tags
         runAfter:
           - s2i-build
         taskRef:
           name: openshift-client
         params:
           - name: SCRIPT
-            value: oc tag demo-cicd/spring-petclinic:latest demo-cicd/spring-petclinic:$(params.revision) -n demo-cicd
-
-      # ── Step 5: Verify Image Tags ─────────────────────────────────────────
-      # Verifies the image tags are correctly set in the ImageStream
-      - name: verify-tags
-        runAfter:
-          - tag-image
-        taskRef:
-          name: openshift-client
-        params:
-          - name: SCRIPT
             value: oc get istag -n demo-cicd
+
   workspaces:
   - name: source
     volumeClaimTemplate:
